@@ -1,0 +1,165 @@
+openapi: 3.0.3
+info:
+  title: Document Processing API
+  version: 1.0.0
+  description: |
+    REST API for processing and summarizing document files (*.pdf, *.docx, *.txt) 
+    stored in the "Task Documents" folder. 
+    The system generates summaries using ChatGPT/OpenAI and stores file metadata 
+    (name, path, format, size, checksum/status, etc.) in a relational database.
+    Supports async/parallel file processing.
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+
+paths:
+  /refresh:
+    post:
+      summary: Process all files in folder
+      description: Scans the given folder path, processes all supported files, and generates summaries asynchronously.
+      operationId: refreshFiles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Absolute or relative path to the folder to scan
+                watch:
+                  type: boolean
+                  description: true to watch the folder, false to unwatch
+              required:
+                - path
+      responses:
+        '200':
+          description: Successfully started file processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingStatus'
+        '400':
+          description: Invalid path parameter or folder not found.
+        '500':
+          description: Internal server error during processing.
+
+  /files:
+    get:
+      summary: List all files
+      description: Lists all processed files with metadata including name, format, size, and status.
+      operationId: listFiles
+      responses:
+        '200':
+          description: A list of files with metadata.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileMetadata'
+        '500':
+          description: Failed to retrieve file list.
+
+  /files/{id}/summary:
+    get:
+      summary: Get file summary by ID
+      description: Returns a generated text summary for the specified file.
+      operationId: getFileSummary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique file identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File summary retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileSummary'
+        '404':
+          description: File not found.
+
+  /files/{id}/content:
+    get:
+      summary: Get file content by ID
+      description: Returns the plain text content extracted from the document.
+      operationId: getFileContent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique file identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content retrieved successfully.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: File not found.
+
+components:
+  schemas:
+    FileMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "c92f12d3-8b5a-4b1b-9f2a-23e82bb1e9f4"
+        name:
+          type: string
+          example: "project_plan.docx"
+        path:
+          type: string
+          example: "/Task Documents/project_plan.docx"
+        format:
+          type: string
+          enum: [pdf, docx, txt]
+          example: "docx"
+        size:
+          type: integer
+          format: int64
+          example: 45231
+        checksum:
+          type: string
+          example: "ae35b6c9f17d98d2f2b1f3b1e6b0f5c9"
+        present:
+          type: boolean
+          description: Indicates whether the file is in the directory.
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FileSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "c92f12d3-8b5a-4b1b-9f2a-23e82bb1e9f4"
+        summaryText:
+          type: string
+          description: Short text summary generated from the document content.
+          example: "This report provides an overview of the Q2 business performance and strategic initiatives."
+
+    ProcessingStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "Processing started"
+        totalFiles:
+          type: integer
+          example: 12
